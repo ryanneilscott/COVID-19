@@ -1,0 +1,86 @@
+
+
+
+
+install.packages("tidyverse")
+
+library(tidyverse)
+
+global_cases <- read_csv("time_series_covid19_confirmed_global.csv")
+global_deaths <- read_csv("time_series_covid19_deaths_global.csv")
+US_cases <- read_csv("time_series_covid19_confirmed_US.csv")
+US_deaths <- read_csv("time_series_covid19_deaths_US.csv")
+
+head(global_cases, n = 5)
+
+global_cases <- global_cases %>%
+     pivot_longer(cols = -c('Province/State', 'Country/Region', Lat, Long),
+                  names_to = "date",
+                 values_to = "cases") %>%
+     select(-c(Lat, Long))
+
+head(global_cases, n = 5)
+
+
+global_deaths <- global_deaths %>%
+     pivot_longer(cols = -c('Province/State', 'Country/Region', Lat, Long),
+                  names_to = "date",
+                  values_to = "deaths") %>%
+     select(-c(Lat, Long))
+
+
+head(global_deaths, n=5)
+
+
+global <- global_cases %>%
+     full_join(global_deaths) %>%
+     rename(Country_Region = 'Country/Region',
+            Province_State = 'Province/State') %>%
+     mutate(date = mdy(date))
+
+
+summary(global)
+
+# Removed rows where cases is 0
+global <- global %>% filter(cases > 0)
+
+
+
+US_cases <- US_cases %>%
+    pivot_longer(cols = -(UID:Combined_Key),
+                 names_to = "date",
+                 values_to = "cases") %>%
+    select(Admin2:cases) %>%
+    mutate(date = mdy(date)) %>%
+    select(-c(Lat, Long_))
+
+
+US_deaths <- US_deaths %>%
+    pivot_longer(cols = -(UID:Combined_Key),
+                 names_to = "date",
+                 values_to = "deaths") %>%
+    select(Admin2:deaths) %>%
+    mutate(date = mdy(date)) %>%
+    select(-c(Lat, Long_))
+
+US <- US_cases %>%
+     full_join(US_deaths)
+
+global <- global %>%
+     unite("Combined_Key",
+          c(Province_State, Country_Region),
+          sep = ", ",
+          na.rm = TRUE,
+          remove = FALSE)
+
+uid_lookup_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/UID_ISO_FIPS_LookUp_Table.csv"
+
+uid <- read_csv(uid_lookup_url) %>%
+     select(-c(Lat, Long_, Combined_Key, code3, iso2, iso3, Admin2))
+
+global <- global %>%
+     left_join(uid, by = c("Province_State", "Country_Region")) %>%
+     select(-c(UID, FIPS)) %>%
+     select(Province_State, Country_Region, date,
+          cases, deaths, Population,
+          Combined_Key)
