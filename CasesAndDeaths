@@ -131,4 +131,80 @@ max(US_totals$date)
 
 max(US_totals$deaths)
 
+# Building new columns to determine the number of new cases each day
+US_by_state <- US_by_state %>%
+     mutate(new_cases = cases - lag(cases), 
+          new_deaths = deaths - lag(deaths))
+US_totals <- US_totals %>%
+     mutate(new_cases = cases - lag(cases),
+          new_deaths = deaths - lag(deaths))
 
+tail(US_totals)
+
+tail(US_totals %>% select(new_cases, new_deaths, everything()))
+               
+US_totals %>%
+     ggplot(aes(x = date, y = new_cases)) +
+     geom_line(aes(color = "new_cases")) +
+     geom_point(aes(color = "new_cases")) +
+     geom_line(aes(y = new_deaths, color = "new_deaths")) +
+     geom_point(aes(y = new_deaths, color = "new_deaths")) +
+     scale_y_log10() +
+     theme(legend.position = "bottom",
+          axis.text.x = element_text(angle = 90)) +
+     labs(title = "COVID19 in US", y = NULL)
+
+state <- "New York"
+US_by_state %>%
+     filter(Province_State == state) %>%
+     ggplot(aes(x = date, y = new_cases)) + 
+     geom_line(aes(color = "new_cases")) +
+     geom_point(aes(color = "new_cases")) +
+     geom_line(aes(y = deaths, color = "new_deaths")) +
+     geom_point(aes(y = deaths, color = "new_deaths")) +
+     scale_y_log10() +
+     theme(legend.position = "bottom",
+          axis.text.x = element_text(angle = 90)) +
+     labs(title = str_c("COVID19 in ", state), y = NULL)
+
+
+US_state_totals <- US_by_state %>%
+     group_by(Province_State) %>%
+     summarize(deaths = max(deaths), cases = max(cases),
+          population = max(Population),
+          cases_per_thou = 1000 * cases / population,
+          deaths_per_thou = 1000 * deaths / population) %>%
+     filter(cases > 0, population > 0)
+
+# Tells me the the states with the smallest states of deaths per thousand
+US_state_totals %>%
+     slice_min(deaths_per_thou, n = 10)
+
+
+US_state_totals %>%
+     slice_min(deaths_per_thou, n = 10) %>%
+     select(deaths_per_thou, cases_per_thou, everything())
+
+# Worst states
+US_state_totals %>%
+     slice_max(deaths_per_thou, n = 10) %>%
+     select(deaths_per_thou, cases_per_thou, everything())
+
+# 
+mod <- lm(deaths_per_thou ~ cases_per_thou, data = US_state_totals)
+summary(mod)
+
+# I wanted to see what the smallest was
+US_state_totals %>% slice_min(cases_per_thou)
+
+US_state_totals %>% slice_max(cases_per_thou)
+
+US_state_totals %>% mutate(pred = predict(mod))
+
+us_tot_w_pred <- US_state_totals %>% mutate(pred = predict(mod))
+us_tot_w_pred
+
+us_tot_w_pred %>% 
+     ggplot() +
+     geom_point(aes(x = cases_per_thou, y = deaths_per_thou), color = "blue") +
+     geom_point(aes(x = cases_per_thou, y = pred), color = "red")
